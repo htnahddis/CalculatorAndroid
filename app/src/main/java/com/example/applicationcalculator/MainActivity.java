@@ -81,6 +81,21 @@ public class MainActivity extends AppCompatActivity {
             case "×": // Ensuring we handle the actual multiplication symbol
             case "÷": // Ensuring we handle the actual division symbol
             case "x": // Handle 'x' as multiplication too
+                // Validate that we don't add consecutive operators
+                if (isLastCharOperator() || currentExpression.length() == 0) {
+                    // Don't allow operators at the beginning except for minus (negative numbers)
+                    if (currentExpression.length() == 0 && !text.equals("-")) {
+                        Toast.makeText(this, "Cannot start with this operator", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    // Don't allow consecutive operators
+                    if (currentExpression.length() > 0) {
+                        Toast.makeText(this, "Cannot add consecutive operators", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                }
+
                 // Make sure we normalize operators
                 if (text.equals("×") || text.equals("x"))
                     currentExpression.append("*");
@@ -95,8 +110,32 @@ public class MainActivity extends AppCompatActivity {
         inputTextView.setText(currentExpression.toString());
     }
 
+    private boolean isLastCharOperator() {
+        if (currentExpression.length() == 0) return false;
+
+        char lastChar = currentExpression.charAt(currentExpression.length() - 1);
+        return lastChar == '+' || lastChar == '-' || lastChar == '*' || lastChar == '/' ||
+                lastChar == '×' || lastChar == '÷';
+    }
+
     private void evaluateExpression() {
         try {
+            if (currentExpression.length() == 0) {
+                return; // Nothing to evaluate
+            }
+
+            // Check if expression ends with an operator
+            if (isLastCharOperator()) {
+                Toast.makeText(this, "Expression cannot end with an operator", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Check for unbalanced parentheses
+            if (!hasBalancedParentheses(currentExpression.toString())) {
+                Toast.makeText(this, "Unbalanced parentheses", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
             // Save the original expression for error reporting
             String originalExpression = currentExpression.toString();
 
@@ -126,6 +165,16 @@ public class MainActivity extends AppCompatActivity {
             // Show error details for debugging
             Toast.makeText(this, "Calculation error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private boolean hasBalancedParentheses(String expression) {
+        int count = 0;
+        for (char c : expression.toCharArray()) {
+            if (c == '(') count++;
+            if (c == ')') count--;
+            if (count < 0) return false; // More closing than opening
+        }
+        return count == 0; // Should be balanced at the end
     }
 
     // Simple but robust evaluation function for basic operations
@@ -182,7 +231,7 @@ public class MainActivity extends AppCompatActivity {
         private double parseTerm() {
             double x = parseFactor();
             while (true) {
-                if (eat('*')) x *= parseFactor();     // Multiplication
+                if (eat('*')){ x *= parseFactor();}     // Multiplication
                 else if (eat('/')) {                  // Division
                     double divisor = parseFactor();
                     if (divisor == 0) throw new ArithmeticException("Division by zero");
@@ -262,7 +311,11 @@ public class MainActivity extends AppCompatActivity {
                     sb.append(ch);
                     nextChar();
                 }
-                x = Double.parseDouble(sb.toString());
+                try {
+                    x = Double.parseDouble(sb.toString());
+                } catch (NumberFormatException e) {
+                    throw new RuntimeException("Invalid number format: " + sb.toString());
+                }
             }
             else {
                 throw new RuntimeException("Unexpected character: " + ch);
@@ -319,11 +372,30 @@ public class MainActivity extends AppCompatActivity {
                 currentExpression.append("sqrt(");
                 break;
             case "!":
-                currentExpression.append("!");
+                // Check if there's a valid number before adding factorial
+                if (currentExpression.length() > 0 && Character.isDigit(currentExpression.charAt(currentExpression.length() - 1))) {
+                    currentExpression.append("!");
+                } else {
+                    Toast.makeText(this, "Factorial needs a number before it", Toast.LENGTH_SHORT).show();
+                }
                 break;
             case "(":
-            case ")":
+                // Allow opening parenthesis freely
                 currentExpression.append(text);
+                break;
+            case ")":
+                // Check for balanced parentheses before adding closing parenthesis
+                int openCount = 0;
+                int closeCount = 0;
+                for (int i = 0; i < currentExpression.length(); i++) {
+                    if (currentExpression.charAt(i) == '(') openCount++;
+                    if (currentExpression.charAt(i) == ')') closeCount++;
+                }
+                if (openCount > closeCount) {
+                    currentExpression.append(text);
+                } else {
+                    Toast.makeText(this, "Missing opening parenthesis", Toast.LENGTH_SHORT).show();
+                }
                 break;
             case "deg":
                 isRadianMode = false;
